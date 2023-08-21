@@ -7,9 +7,20 @@
     <title>Document</title>
 </head>
 <body>
-    <div id="fb-root"></div>
-    <script async defer nonce crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v17.0&appId=691441696377216&autoLogAppEvents=1" nonce="3DcvMwBM"></script>
-    <div class="fb-comments" data-href="ordinall.github.io/testforapp.html" data-width="222" data-numposts="5"></div>
+    <div id="comments"></div>
+<script>
+  fetch('https://api.github.com/gists/6841056cc1476898a3a7173b4ee7daa2')
+    .then(response => response.json())
+    .then(data => {
+      const comments = JSON.parse(data.files["comments.json"].content).comments;
+      const commentsDiv = document.getElementById('comments');
+      comments.forEach(comment => {
+        const commentDiv = document.createElement('div');
+        commentDiv.textContent = `${comment.name}: ${comment.comment}`;
+        commentsDiv.appendChild(commentDiv);
+      });
+    });
+</script>
 
 </body>
 </html>
