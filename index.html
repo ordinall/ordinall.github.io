@@ -218,6 +218,17 @@
     #w[data-fx="useful"] span { opacity: 1; }
   }
 
+  main, footer { position: relative; z-index: 1; }
+  #meltdown {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: center;
+    font-family: "Inter Tight", ui-sans-serif, system-ui, sans-serif; font-weight: 500;
+    color: var(--muted); line-height: 1; white-space: nowrap; letter-spacing: -.02em;
+  }
+  #meltdown .row { flex: none; }
+  .tear { position: fixed; left: 0; width: 100vw; overflow: hidden; pointer-events: none; z-index: 2; background: var(--bg); }
+
+  .slot { user-select: none; -webkit-user-select: none; }
   .slot.off { display: none; }
   @media (max-width: 900px) {
     h1 { height: 3.5em; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -398,6 +409,108 @@
       }, 55);
     };
     setTimeout(() => { el.parentElement.classList.remove("off"); next(); }, 3000);
+
+    const MELTDOWN = { min: 10000, max: 20000, length: 750 };
+
+    let melting = false;
+
+    const meltdown = () => {
+      if (melting) return;
+      melting = true;
+      const root = document.documentElement;
+      const main = document.querySelector("main");
+      const footer = document.querySelector("footer");
+      const jitter = () => (Math.random() * 2 - 1);
+      const layer = document.createElement("div");
+      layer.id = "meltdown";
+      layer.setAttribute("aria-hidden", "true");
+
+      const rowH = Math.max(22, Math.round(innerHeight / 16));
+      const size = rowH * .82;
+      const base = "make ".repeat(Math.ceil(innerWidth / (size * 2.2)) + 3);
+      const rows = Array.from({ length: Math.ceil(innerHeight / rowH) + 2 }, () => {
+        const r = document.createElement("div");
+        r.className = "row";
+        r.style.height = rowH + "px";
+        r.style.fontSize = size + "px";
+        r.textContent = base;
+        layer.appendChild(r);
+        return r;
+      });
+      root.appendChild(layer);
+
+      const junk = "█▓▒░_/|#=";
+      const corrupt = s => [...s].map(c => c !== " " && Math.random() < .2 ? junk[rand(junk.length)] : c).join("");
+
+      let tears = [];
+      const tear = () => {
+        tears.forEach(t => t.remove());
+        tears = [];
+        const rect = main.getBoundingClientRect();
+        for (let k = rand(4); k > 0; k--) {
+          const y = rand(rect.height);
+          const h = 4 + rand(Math.max(8, rect.height / 5));
+          const t = document.createElement("div");
+          t.className = "tear";
+          t.setAttribute("aria-hidden", "true");
+          t.style.top = rect.top + y + "px";
+          t.style.height = h + "px";
+          const clone = main.cloneNode(true);
+          clone.querySelectorAll(".fade").forEach(n => n.classList.remove("fade"));
+          clone.style.cssText = `position:absolute;margin:0;left:${rect.left + jitter() * 80}px;top:${-y}px;width:${rect.width}px;height:${rect.height}px;transform:none`;
+          t.appendChild(clone);
+          const roll = Math.random();
+          if (roll < .25) t.style.filter = "invert(1)";
+          else if (roll < .6) t.style.textShadow = `${4 + rand(6)}px 0 rgba(255,0,80,.85), -${4 + rand(6)}px 0 rgba(0,220,255,.85)`;
+          root.appendChild(t);
+          tears.push(t);
+        }
+      };
+
+      const frame = () => {
+        if (Math.random() < .18) return;
+        rows.forEach(r => {
+          const roll = Math.random();
+          r.style.transform = roll < .3 ? `translateX(${jitter() * size * 3}px)` : roll < .38 ? `translateX(${jitter() * size * 12}px) scaleY(${.3 + Math.random()})` : "none";
+          r.style.opacity = Math.random() < .15 ? 0 : 1;
+          r.style.color = Math.random() < .07 ? "var(--fg)" : "";
+          r.textContent = Math.random() < .45 ? corrupt(base) : base;
+        });
+        layer.style.transform = Math.random() < .25 ? `translateY(${jitter() * rowH * 3}px)` : "none";
+        const split = 1 + rand(5);
+        layer.style.textShadow = `${split}px 0 rgba(255,0,80,.6), -${split}px 0 rgba(0,220,255,.6)`;
+        main.style.translate = Math.random() < .35 ? `${jitter() * 14}px 0` : "";
+        footer.style.translate = Math.random() < .2 ? `${jitter() * 10}px 0` : "";
+        tear();
+      };
+
+      root.classList.add("meltdown");
+      frame();
+      const iv = setInterval(frame, 38);
+
+      setTimeout(() => {
+        clearInterval(iv);
+        tears.forEach(t => t.remove());
+        layer.remove();
+        main.style.translate = footer.style.translate = "";
+        root.classList.remove("meltdown");
+        melting = false;
+      }, MELTDOWN.length);
+    };
+
+    if (!reduce) {
+      let clicks = [];
+      el.parentElement.addEventListener("click", () => {
+        const now = performance.now();
+        clicks = clicks.filter(t => now - t < 1500).concat(now);
+        if (clicks.length >= 5) { clicks = []; meltdown(); }
+      });
+
+      setTimeout(function go() {
+        if (document.hidden) return document.addEventListener("visibilitychange", go, { once: true });
+        meltdown();
+      }, location.search.includes("meltdown") ? 1500 : MELTDOWN.min + rand(MELTDOWN.max - MELTDOWN.min));
+    }
   })();
   </script>
   <footer class="fade d4">
