@@ -328,6 +328,13 @@
       const f = FONTS[n], axis = f.italic ? ":ital@1" : f.weight ? `:wght@${f.weight}` : "";
       return "family=" + n.replace(/ /g, "+") + axis;
     }).join("&") + "&text=" + abc + abc.toUpperCase() + "&display=swap";
+    link.onload = () => {
+      if (!document.fonts) return;
+      fontNames.forEach(n => {
+        const f = FONTS[n];
+        document.fonts.load(`${f.italic ? "italic " : ""}${f.weight || 400} 1em "${n}"`, abc + abc.toUpperCase()).catch(() => {});
+      });
+    };
     document.head.appendChild(link);
 
     const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => String.fromCharCode(a + i));
