@@ -196,6 +196,21 @@
   #w[data-fx="tiny"] span { animation: boing .3s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -.08s); }
 
   #w[data-fx="cursed"] { color: #c1121f; text-shadow: 0 0 .2em rgba(193, 18, 31, .45); }
+  #w[data-fx="cursed"]:not(.glitch) { animation: possess 2.6s steps(1) infinite, throb 1.3s ease-in-out infinite alternate; }
+  #w[data-fx="cursed"] span.void { color: var(--bg); text-shadow: 0 0 .06em #ff1f2f, 0 0 .3em rgba(255, 0, 0, .8); }
+  @keyframes throb {
+    from { text-shadow: 0 0 .15em rgba(193, 18, 31, .4); }
+    to   { text-shadow: 0 0 .5em rgba(255, 20, 40, .85), 0 0 1em rgba(120, 0, 0, .6); }
+  }
+  @keyframes possess {
+    0%, 100% { transform: none; filter: none; }
+    40% { transform: skewX(-14deg); filter: invert(1); }
+    43% { transform: scaleY(-1); filter: none; }
+    46% { transform: none; }
+    76% { transform: translateX(.1em) skewX(20deg); filter: blur(1.5px); }
+    79% { transform: translateX(-.06em); filter: none; }
+    82% { transform: none; }
+  }
 
   #w[data-fx="unhinged"] span { animation: shake .08s steps(2) infinite; animation-delay: calc(var(--i) * -.03s); }
   @keyframes shake {
@@ -280,14 +295,12 @@
       "Caveat":             { size: 1.15, weight: 600 },
       "Abril Fatface":      { size: .95 },
       "Creepster":          { size: 1 },
-      "Nosifer":            { size: .6 },
       "Bungee Shade":       { size: .75 },
       "Silkscreen":         { size: .75 },
       "VT323":              { size: 1.15 },
       "Shrikhand":          { size: .9 },
       "Lobster":            { size: 1 },
       "Permanent Marker":   { size: .9 },
-      "Rubik Wet Paint":    { size: .85 },
       "Major Mono Display": { size: .7 },
       "Rye":                { size: .85 },
       "Bowlby One":         { size: .8 },
@@ -302,7 +315,7 @@
       { text: "small",    font: "Silkscreen", size: .45 },
       { text: "tiny",     font: "Major Mono Display", size: .35 },
       { text: "cursed",   font: "UnifrakturMaguntia" },
-      { text: "unhinged", font: "Nosifer" },
+      "unhinged",
     ].map(w => typeof w === "string" ? { text: w } : w)
      .map(w => ({ fx: w.text, ...w }));
 
@@ -334,7 +347,7 @@
     const DOWN = [...range(0x316, 0x319), ...range(0x31c, 0x333), ...range(0x339, 0x33c), "ͅ",
                   ...range(0x347, 0x349), ...range(0x34d, 0x34e), ...range(0x353, 0x356), ...range(0x359, 0x35a)];
     const marks = (set, n) => Array.from({ length: n }, () => set[rand(set.length)]).join("");
-    const curse = s => [...s].map(c => c + marks(UP, 2 + rand(5)) + marks(MID, rand(2)) + marks(DOWN, 2 + rand(5))).join("");
+    const curse = s => [...s].map(c => c + marks(UP, 7 + rand(12)) + marks(MID, rand(3)) + marks(DOWN, 7 + rand(12))).join("");
     const bag = n => {
       let q = [], last = -1;
       return () => {
@@ -361,15 +374,17 @@
       const base = size ?? FONTS[name].size;
       setFont(el, name, base);
       el.dataset.fx = fx;
-      if (!fx || fx === "cursed") { el.textContent = fx ? curse(text) : text; return; }
+      if (!fx) { el.textContent = text; return; }
+      const cursed = fx === "cursed";
       if (fx === "weird") text = [...text].map((c, i) => i % 2 ? c.toUpperCase() : c).join("");
       const odd = rand(text.length);
       el.replaceChildren(...[...text].map((c, i) => {
         const s = document.createElement("span");
-        s.textContent = c;
+        s.textContent = cursed ? curse(c) : c;
         s.style.setProperty("--i", i);
         s.style.setProperty("--r", (Math.random() * 2 - 1).toFixed(2));
         s.style.setProperty("--q", (Math.random() * 2 - 1).toFixed(2));
+        if (cursed && Math.random() < .13) s.className = "void";
         if (fx === "chaotic" || fx === "scrappy" || (fx === "unique" && i === odd)) {
           const f = randomFont();
           setFont(s, f, FONTS[f].size / base);
@@ -380,12 +395,13 @@
     };
     const scramble = word => [...word].map(c => Math.random() < .6 ? abc[rand(26)] : c).join("");
 
+    const forced = WORDS.find(w => w.text === new URLSearchParams(location.search).get("word"));
     const LIVE = { cursed: 140, chaotic: 180 };
     let haunt;
 
     const next = () => {
       clearInterval(haunt);
-      const w = WORDS[nextWord()];
+      const w = forced || WORDS[nextWord()];
       const font = w.font || fontNames[nextFont()];
       const cursed = w.fx === "cursed";
       const settle = () => {
@@ -397,7 +413,7 @@
       let step = 0;
       const iv = setInterval(() => {
         if (++step < 9) {
-          return show(scramble(w.text), randomFont(), undefined, cursed ? "cursed" : "");
+          return show(scramble(w.text), cursed ? font : randomFont(), cursed ? w.size : undefined, cursed ? "cursed" : "");
         }
         clearInterval(iv);
         el.classList.remove("glitch");
