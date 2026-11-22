@@ -110,16 +110,30 @@
   @media (min-width: 901px) { h1 { height: 1.1em; } }
   #w {
     display: inline-block; font-weight: 400; letter-spacing: 0; line-height: 1;
-    padding: 0 .08em;
+    padding: 0 .08em; position: relative;
   }
   #w.glitch {
-    text-shadow: .04em 0 rgba(255, 0, 90, .75), -.04em 0 rgba(0, 210, 255, .75);
-    animation: jitter .12s steps(2) infinite;
+    text-shadow: .09em 0 rgba(255, 0, 90, .85), -.09em 0 rgba(0, 210, 255, .85), 0 .05em rgba(255, 230, 0, .45);
+    animation: jitter .2s steps(1) infinite;
   }
   @keyframes jitter {
-    0%   { transform: translate(.02em, -.02em) skewX(-6deg); clip-path: inset(10% 0 30% 0); }
-    50%  { transform: translate(-.03em, .02em) skewX(4deg);  clip-path: inset(40% 0 5% 0); }
-    100% { transform: none; clip-path: none; }
+    0%   { transform: translate(.06em, -.04em) skewX(-18deg); clip-path: inset(0 -1em 50% -1em); filter: none; }
+    20%  { transform: translate(-.08em, .03em) skewX(14deg);  clip-path: inset(30% -1em 15% -1em); filter: invert(1); }
+    40%  { transform: translate(.03em, .06em);                clip-path: inset(55% -1em 0 -1em); filter: none; }
+    60%  { transform: translate(-.05em, -.05em) skewY(5deg);  clip-path: inset(10% -1em 35% -1em); filter: hue-rotate(120deg) saturate(4); }
+    80%  { transform: translateX(.12em) skewX(-28deg);        clip-path: inset(40% -1em 10% -1em); filter: blur(1px); }
+  }
+  #w.glitch::before, #w.glitch::after {
+    content: attr(data-g); position: absolute; inset: 0; padding: inherit; pointer-events: none;
+    animation: slice .18s steps(1) infinite;
+  }
+  #w.glitch::before { color: #ff0055; }
+  #w.glitch::after  { color: #00d2ff; animation-direction: reverse; animation-duration: .14s; }
+  @keyframes slice {
+    0%  { clip-path: inset(5% 0 70% 0);  transform: translateX(-.15em); }
+    25% { clip-path: inset(50% 0 25% 0); transform: translateX(.2em); }
+    50% { clip-path: inset(20% 0 60% 0); transform: translateX(-.25em); }
+    75% { clip-path: inset(72% 0 4% 0);  transform: translateX(.12em); }
   }
   #w span { display: inline-block; }
 
@@ -374,6 +388,7 @@
       const base = size ?? FONTS[name].size;
       setFont(el, name, base);
       el.dataset.fx = fx;
+      el.dataset.g = text;
       if (!fx) { el.textContent = text; return; }
       const cursed = fx === "cursed";
       if (fx === "weird") text = [...text].map((c, i) => i % 2 ? c.toUpperCase() : c).join("");
@@ -393,7 +408,11 @@
         return s;
       }));
     };
-    const scramble = word => [...word].map(c => Math.random() < .6 ? abc[rand(26)] : c).join("");
+    const junk = "█▓▒░#%&@$/\\|<>";
+    const scramble = word => [...word].map(c => {
+      const roll = Math.random();
+      return roll < .25 ? junk[rand(junk.length)] : roll < .65 ? abc[rand(26)] : c;
+    }).join("");
 
     const forced = WORDS.find(w => w.text === new URLSearchParams(location.search).get("word"));
     const LIVE = { cursed: 140, chaotic: 180 };
@@ -412,13 +431,13 @@
       el.classList.add("glitch");
       let step = 0;
       const iv = setInterval(() => {
-        if (++step < 9) {
+        if (++step < 12) {
           return show(scramble(w.text), cursed ? font : randomFont(), cursed ? w.size : undefined, cursed ? "cursed" : "");
         }
         clearInterval(iv);
         el.classList.remove("glitch");
         settle();
-        setTimeout(next, 1700 + rand(900));
+        setTimeout(next, (1700 + rand(900)) * (cursed ? 1.2 : 1));
       }, 55);
     };
     setTimeout(() => { el.parentElement.classList.remove("off"); next(); }, 3000);
