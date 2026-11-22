@@ -280,10 +280,9 @@
 
   #w[data-fx="redacted"]::after {
     content: ""; position: absolute; inset: .06em .04em; background: var(--fg);
-    animation: redact 0s .25s both;
+    animation: redact 0s .4s both;
   }
   @keyframes redact { from { visibility: hidden; } to { visibility: visible; } }
-
   @media (prefers-reduced-motion: reduce) {
     #w, #w span, h1 em { animation: none !important; }
     #w[data-fx="useful"] span { opacity: 1; }
@@ -459,6 +458,7 @@
       if (!fx) { el.textContent = text; return; }
       const cursed = fx === "cursed";
       if (fx === "weird") text = [...text].map((c, i) => i % 2 ? c.toUpperCase() : c).join("");
+      if (fx === "redacted") text = `*${text}*`;
       const odd = rand(text.length);
       el.replaceChildren(...[...text].map((c, i) => {
         const s = document.createElement("span");
@@ -590,9 +590,14 @@
       }, 1500);
     };
 
+    // the timed meltdown waits until these have each been shown (and finished)
+    const awaited = new Set(forced ? [] : ["cursed", "corrupted"]);
+    let current;
+
     const next = () => {
       clearInterval(haunt);
-      const w = forced || WORDS[nextWord()];
+      if (current) awaited.delete(current.text);
+      const w = current = forced || WORDS[nextWord()];
       const font = w.font || fontNames[nextFont()];
       const cursed = w.fx === "cursed";
       const settle = () => {
@@ -716,7 +721,7 @@
 
       setTimeout(function go() {
         if (document.hidden) return document.addEventListener("visibilitychange", go, { once: true });
-        if (busy) return setTimeout(go, 800);
+        if (busy || (awaited.size && !location.search.includes("meltdown"))) return setTimeout(go, 800);
         meltdown();
       }, location.search.includes("meltdown") ? 1500 : MELTDOWN.min + rand(MELTDOWN.max - MELTDOWN.min));
     }
