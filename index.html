@@ -232,8 +232,60 @@
     50% { transform: translate(calc(var(--q) * -.07em), calc(var(--r) * .06em)) rotate(calc(var(--q) * -9deg)); }
   }
 
+  #w[data-fx="broken"] span {
+    transform-origin: 50% 100%;
+    animation: crack .45s steps(1) forwards, fall 1s cubic-bezier(.55, 0, .9, .45) forwards;
+    animation-delay: calc(.4s + var(--d) * .25s), calc(.9s + var(--d) * .8s);
+  }
+  @keyframes crack {
+    0%   { transform: none; }
+    25%  { transform: translateX(.02em) rotate(calc(var(--r) * 7deg)); }
+    55%  { transform: translateX(-.02em) rotate(calc(var(--r) * -4deg)); }
+    100% { transform: translateY(.02em) rotate(calc(var(--r) * 5deg)); }
+  }
+  @keyframes fall {
+    from { transform: translateY(.02em) rotate(calc(var(--r) * 5deg)); }
+    to   { transform: translateY(110vh) rotate(calc(var(--r) * 200deg)); }
+  }
+  h1 em { display: inline-block; transform-origin: 100% 100%; }
+  h1:has(#w[data-fx="broken"]) em { animation: slump 1.2s ease-out 1.6s forwards; }
+  @keyframes slump { 35% { transform: rotate(-10deg); } 55% { transform: rotate(-5deg); } 75% { transform: rotate(-7.5deg); } 100% { transform: rotate(-6.5deg); } }
+  html:has(#w[data-fx="broken"]), html:has(#w[data-fx="explosive"]) { overflow: hidden; }
+
+  h1 .lead { display: inline-block; }
+  #w[data-fx="explosive"] span {
+    animation: heat .6s ease-in forwards, rumble .06s steps(2) 10, blast 1s cubic-bezier(.1, .8, .3, 1) .6s forwards;
+  }
+  @keyframes heat { to { color: #ffd08a; text-shadow: 0 0 .2em rgba(255, 140, 0, .9), 0 0 .6em rgba(255, 60, 0, .6); } }
+  @keyframes rumble {
+    0%  { transform: translate(calc(var(--r) * .04em), calc(var(--q) * .04em)); }
+    50% { transform: translate(calc(var(--q) * -.04em), calc(var(--r) * .04em)); }
+  }
+  @keyframes blast {
+    0%   { transform: scale(1.3); opacity: 1; }
+    100% {
+      transform: translate(calc((var(--x) * .7 + var(--r) * .3) * 50vw), calc(var(--q) * 40vh - 8vh))
+                 rotate(calc(var(--r) * 540deg)) scale(.6);
+      opacity: 0;
+    }
+  }
+  .flash { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+  .hang, .ghosts { position: fixed; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+  .segv {
+    position: fixed; inset: 0; z-index: 4; pointer-events: none; background: #000; color: #ccc; padding: 16px 18px;
+    font: 15px/1.5 ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace; white-space: pre;
+  }
+  .segv::after { content: ""; display: block; width: .6em; height: 1.2em; margin-top: .15em; background: #ccc; animation: caret 1s steps(1) infinite; }
+
+  #w[data-fx="redacted"]::after {
+    content: ""; position: absolute; inset: .06em .04em; background: var(--fg);
+    animation: redact 0s .25s both;
+  }
+  @keyframes redact { from { visibility: hidden; } to { visibility: visible; } }
+
   @media (prefers-reduced-motion: reduce) {
-    #w, #w span { animation: none !important; }
+    #w, #w span, h1 em { animation: none !important; }
     #w[data-fx="useful"] span { opacity: 1; }
   }
 
@@ -246,6 +298,7 @@
   }
   #meltdown .row { flex: none; }
   .tear { position: fixed; left: 0; width: 100vw; overflow: hidden; pointer-events: none; z-index: 2; background: var(--bg); }
+
 
   .slot { user-select: none; -webkit-user-select: none; }
   .slot.off { display: none; }
@@ -289,7 +342,7 @@
 <body>
   <main>
     <p class="handle fade d1">ordinall</p>
-    <h1 class="fade d2" aria-label="I make things.">I make <span class="slot off" aria-hidden="true"><span id="w"></span></span> <em>things.</em></h1>
+    <h1 class="fade d2" aria-label="I make things."><span class="lead">I make</span> <span class="slot off" aria-hidden="true"><span id="w"></span></span> <em>things.</em></h1>
     <nav class="fade d3">
       <a href="https://weris.ordinall.dev/">weris <span class="arrow">↗</span><span class="tip">Reverse image search for Wallpaper Engine wallpapers</span></a>
       <a href="https://eyewatcher.ordinall.dev/">eyewatcher <span class="arrow">↗</span><span class="tip">Price checker for Path of Exile's Watcher's Eye jewels</span></a>
@@ -328,8 +381,12 @@
       { text: "big",      font: "Bowlby One", size: 1.05 },
       { text: "small",    font: "Silkscreen", size: .45 },
       { text: "tiny",     font: "Major Mono Display", size: .35 },
-      { text: "cursed",   font: "UnifrakturMaguntia" },
+      { text: "cursed",   font: "UnifrakturMaguntia", hold: 1.2 },
       "unhinged",
+      { text: "broken",   hold: 1.5 },
+      { text: "redacted", font: "Space Mono", hold: 1.3 },
+      { text: "explosive", font: "Bowlby One", hold: 1.2 },
+      "corrupted",
     ].map(w => typeof w === "string" ? { text: w } : w)
      .map(w => ({ fx: w.text, ...w }));
 
@@ -362,18 +419,28 @@
                   ...range(0x347, 0x349), ...range(0x34d, 0x34e), ...range(0x353, 0x356), ...range(0x359, 0x35a)];
     const marks = (set, n) => Array.from({ length: n }, () => set[rand(set.length)]).join("");
     const curse = s => [...s].map(c => c + marks(UP, 7 + rand(12)) + marks(MID, rand(3)) + marks(DOWN, 7 + rand(12))).join("");
-    const bag = n => {
-      let q = [], last = -1;
+    const shuffle = a => {
+      for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+      return a;
+    };
+    // shuffled bag; on the first round, `early` items land somewhere in the first `within` draws
+    const bag = (n, early = [], within = 7) => {
+      let q = [], last = -1, first = true;
       return () => {
         if (!q.length) {
-          q = [...Array(n).keys()];
-          for (let i = n - 1; i > 0; i--) { const j = rand(i + 1); [q[i], q[j]] = [q[j], q[i]]; }
+          q = shuffle([...Array(n).keys()]);
           if (n > 1 && q[n - 1] === last) [q[0], q[n - 1]] = [q[n - 1], q[0]];
+          if (first) {
+            first = false;
+            const slots = shuffle(Array.from({ length: Math.min(within, n) }, (_, i) => n - 1 - i));
+            early.forEach((v, k) => { const at = q.indexOf(v), to = slots[k]; [q[at], q[to]] = [q[to], q[at]]; });
+          }
         }
         return last = q.pop();
       };
     };
-    const nextWord = bag(WORDS.length), nextFont = bag(fontNames.length);
+    const nextWord = bag(WORDS.length, ["cursed", "corrupted"].map(t => WORDS.findIndex(w => w.text === t)));
+    const nextFont = bag(fontNames.length);
 
     const setFont = (node, name, rel = 1) => {
       const f = FONTS[name];
@@ -399,6 +466,8 @@
         s.style.setProperty("--i", i);
         s.style.setProperty("--r", (Math.random() * 2 - 1).toFixed(2));
         s.style.setProperty("--q", (Math.random() * 2 - 1).toFixed(2));
+        s.style.setProperty("--d", Math.random().toFixed(2));
+        s.style.setProperty("--x", text.length > 1 ? (i / (text.length - 1) * 2 - 1).toFixed(2) : 0);
         if (cursed && Math.random() < .13) s.className = "void";
         if (fx === "chaotic" || fx === "scrappy" || (fx === "unique" && i === odd)) {
           const f = randomFont();
@@ -418,6 +487,109 @@
     const LIVE = { cursed: 140, chaotic: 180 };
     let haunt;
 
+    // Effects that move the page work on look-alike copies in a click-through layer. The real
+    // elements stay where they are (just made invisible), so links keep working in place.
+    const SHOVE = ".handle, h1 .lead, h1 em, nav a, footer > *";
+    const overlay = cls => {
+      const layer = document.createElement("div");
+      layer.className = cls;
+      layer.setAttribute("aria-hidden", "true");
+      document.body.appendChild(layer);
+      return layer;
+    };
+    const pageParts = () => [document.querySelector("main"), document.querySelector("footer")]
+      .map(n => ({ n, r: n.getBoundingClientRect() }));
+    const copyPage = (layer, parts, dx = 0, dy = 0) => parts.map(({ n, r }) => {
+      const c = n.cloneNode(true);
+      c.classList.remove("fade");
+      c.querySelectorAll(".fade").forEach(x => x.classList.remove("fade"));
+      c.style.cssText = `position:absolute;margin:0;left:${r.left + dx}px;top:${r.top + dy}px;width:${r.width}px;height:${r.height}px;transform:none`;
+      layer.appendChild(c);
+      return c;
+    });
+    const conceal = (nodes, on) => nodes.forEach(n => on ? n.style.setProperty("opacity", "0", "important") : n.style.removeProperty("opacity"));
+
+    // the word blows apart (letters via CSS); this adds the flash and shoves everything else away
+    const explode = () => {
+      const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const flash = overlay("flash");
+      flash.style.background = `radial-gradient(circle at ${cx}px ${cy}px, rgba(255, 220, 160, .5), rgba(255, 110, 30, .18) 18vmax, transparent 45vmax)`;
+      flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 600, easing: "ease-out" }).onfinish = () => flash.remove();
+
+      if (busy) return;
+      busy = true;
+      const live = [...document.querySelectorAll(SHOVE)];
+      const layer = overlay("ghosts");
+      const [m] = copyPage(layer, pageParts());
+      m.querySelector(".slot").style.visibility = "hidden"; // the real word keeps exploding underneath
+      const copies = [...layer.querySelectorAll(SHOVE)];
+      conceal(live, true);
+
+      copies.forEach((t, i) => {
+        const b = live[i].getBoundingClientRect();
+        const dx = b.left + b.width / 2 - cx, dy = b.top + b.height / 2 - cy;
+        const d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+        const p = Math.min(110, 12000 / d), spin = (Math.random() * 2 - 1) * 14;
+        const at = (k, deg) => ({ translate: `${(ux * p * k).toFixed(1)}px ${(uy * p * k).toFixed(1)}px`, rotate: `${(spin * deg).toFixed(1)}deg` });
+        t.animate([
+          { ...at(0, 0), easing: "cubic-bezier(.1, .9, .2, 1)" },
+          { ...at(1, 1), offset: .12, easing: "cubic-bezier(.5, 0, .3, 1)" },
+          { ...at(-.12, -.3), offset: .55 },
+          { ...at(.04, .1), offset: .8 },
+          at(0, 0),
+        ], { duration: 1400 });
+      });
+      setTimeout(() => { layer.remove(); conceal(live, false); busy = false; }, 1400);
+    };
+
+    // corrupted: the word turns to mojibake, the page drags to the bottom right leaving
+    // copies behind like a hung window, then it segfaults and comes back
+    const MOJI = ["Ã¶", "Ã©", "â€", "â€™", "ï¿½", "�", "Â", "Ã", "¤", "Ø", "ÿ", "¿"];
+    const garble = s => [...s].map(c => Math.random() < .55 ? MOJI[rand(MOJI.length)] : c).join("");
+
+    const crash = (corrupt, done) => {
+      const lead = document.querySelector("h1 .lead"), em = document.querySelector("h1 em");
+      const restore = () => { lead.textContent = "I make"; em.textContent = "things."; };
+      setTimeout(() => {
+        corrupt();
+        lead.textContent = garble("I make");
+        em.textContent = garble("things.");
+      }, 1000);
+      if (busy) return setTimeout(() => { restore(); done(); }, 2800);
+      busy = true;
+      setTimeout(() => {
+        const parts = pageParts(), live = parts.map(p => p.n);
+        const layer = overlay("hang");
+        copyPage(layer, parts);
+        conceal(live, true);
+
+        // any direction except within 30° of straight left/right
+        const steps = 30, angle = (30 + Math.random() * 120 + (Math.random() < .5 ? 180 : 0)) * Math.PI / 180;
+        const sx = Math.cos(angle) * innerWidth * .35 / steps, sy = Math.sin(angle) * innerHeight * .4 / steps;
+        let x = 0, y = 0, t = 0;
+        const drag = () => {
+          const k = .4 + Math.random() * 1.2;
+          x += sx * k + (Math.random() * 4 - 2);
+          y += sy * k + (Math.random() * 4 - 2);
+          copyPage(layer, parts, x, y);
+          if (++t < steps) return setTimeout(drag, 20 + rand(45) + (Math.random() < .1 ? 150 : 0));
+          setTimeout(() => {
+            const term = overlay("segv");
+            term.textContent = "Segmentation fault (core dumped)";
+            setTimeout(() => {
+              term.remove();
+              layer.remove();
+              conceal(live, false);
+              restore();
+              busy = false;
+              done();
+            }, 1100);
+          }, 250);
+        };
+        drag();
+      }, 1500);
+    };
+
     const next = () => {
       clearInterval(haunt);
       const w = forced || WORDS[nextWord()];
@@ -426,8 +598,10 @@
       const settle = () => {
         show(w.text, font, w.size, w.fx);
         if (LIVE[w.fx] && !reduce) haunt = setInterval(() => show(w.text, font, w.size, w.fx), LIVE[w.fx]);
+        if (w.fx === "explosive" && !reduce) setTimeout(explode, 600);
       };
       if (reduce) { settle(); return setTimeout(next, 2800); }
+      const hold = () => setTimeout(next, (1700 + rand(900)) * (w.hold || 1));
       el.classList.add("glitch");
       let step = 0;
       const iv = setInterval(() => {
@@ -437,18 +611,19 @@
         clearInterval(iv);
         el.classList.remove("glitch");
         settle();
-        setTimeout(next, (1700 + rand(900)) * (cursed ? 1.2 : 1));
+        if (w.fx === "corrupted") return crash(() => show(garble(w.text), font, w.size, w.fx), next);
+        hold();
       }, 55);
     };
     setTimeout(() => { el.parentElement.classList.remove("off"); next(); }, 3000);
 
     const MELTDOWN = { min: 10000, max: 20000, length: 1000, clickLength: 750 };
 
-    let melting = false;
+    let busy = false;
 
     const meltdown = (length = MELTDOWN.length) => {
-      if (melting) return;
-      melting = true;
+      if (busy) return;
+      busy = true;
       const root = document.documentElement;
       const main = document.querySelector("main");
       const footer = document.querySelector("footer");
@@ -527,7 +702,7 @@
         layer.remove();
         main.style.translate = footer.style.translate = "";
         root.classList.remove("meltdown");
-        melting = false;
+        busy = false;
       }, length);
     };
 
@@ -541,6 +716,7 @@
 
       setTimeout(function go() {
         if (document.hidden) return document.addEventListener("visibilitychange", go, { once: true });
+        if (busy) return setTimeout(go, 800);
         meltdown();
       }, location.search.includes("meltdown") ? 1500 : MELTDOWN.min + rand(MELTDOWN.max - MELTDOWN.min));
     }
