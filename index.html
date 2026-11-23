@@ -687,7 +687,7 @@
 
     // the timed meltdown waits until these have each been shown (and finished)
     const awaited = new Set(forced ? [] : ["cursed", "corrupted"]);
-    let current;
+    let current, meltdownDue = false;
 
     const next = () => {
       clearInterval(haunt);
@@ -702,10 +702,14 @@
       };
       if (reduce) { settle(); return setTimeout(next, 2800); }
       const hold = () => setTimeout(next, (1700 + rand(900)) * (w.hold || 1));
+      // a due meltdown fires with the word-change glitch, and the scramble lasts as long as it does
+      const melt = meltdownDue && !busy;
+      if (melt) { meltdownDue = false; meltdown(); }
+      const steps = melt ? Math.ceil(MELTDOWN.length / 55) : 12;
       el.classList.add("glitch");
       let step = 0;
       const iv = setInterval(() => {
-        if (++step < 12) {
+        if (++step < steps) {
           return show(scramble(w.text), cursed ? font : randomFont(), cursed ? w.size : undefined, cursed ? "cursed" : "");
         }
         clearInterval(iv);
@@ -817,7 +821,7 @@
       setTimeout(function go() {
         if (document.hidden) return document.addEventListener("visibilitychange", go, { once: true });
         if (busy || (awaited.size && !location.search.includes("meltdown"))) return setTimeout(go, 800);
-        meltdown();
+        meltdownDue = true;
       }, location.search.includes("meltdown") ? 1500 : MELTDOWN.min + rand(MELTDOWN.max - MELTDOWN.min));
     }
   })();
