@@ -282,6 +282,30 @@
     .segv { font-size: 10px; line-height: 1.4; padding: 10px 8px; }
   }
   .segv .ok { color: #5fd35f; }
+  /* after boot the console leaves via one of the EXITS (pin one with ?out=tear|decay|repaint|resync) */
+  .segv.out::after { animation: none; }
+  /* tear: torn, jumping slices, showing the restored page through the gaps */
+  .segv.out-tear { animation: unhang .5s steps(1) forwards; }
+  @keyframes unhang {
+    0%   { clip-path: inset(0); translate: 0; }
+    8%   { clip-path: inset(12% 0 40% 0); translate: -24px 0; filter: invert(1); }
+    16%  { clip-path: inset(0); translate: 10px 0; filter: none; text-shadow: 3px 0 #ff0055, -3px 0 #00d2ff; }
+    26%  { clip-path: inset(55% 0 8% 0); translate: 34px 0; }
+    36%  { clip-path: inset(0 0 62% 0); translate: -14px 0; filter: invert(1); }
+    46%  { clip-path: inset(30% 0 30% 0); translate: 0; filter: none; }
+    56%  { clip-path: inset(70% 0 18% 0); translate: -40px 0; }
+    64%  { clip-path: inset(8% 0 84% 0); translate: 22px 0; filter: invert(1); }
+    74%  { clip-path: inset(47% 0 47% 0); translate: 0; filter: none; }
+    84%  { clip-path: inset(49.6% 0 49.6% 0); translate: -60px 0; }
+    92%  { clip-path: inset(49.8% 0 49.8% 0); translate: 60px 0; }
+    100% { clip-path: inset(50% 0 50% 0); visibility: hidden; }
+  }
+  /* decay: lines garble, slip sideways and drop out one by one, showing the page through the holes */
+  .segv.out-decay { background: transparent; padding-inline: 0; }
+  .segv.out-decay > div { background: #000; padding-inline: 18px; }
+  @media (max-width: 600px) { .segv.out-decay > div { padding-inline: 8px; } }
+  /* resync: console text cuts out, leaving plain black like a monitor switching modes */
+  .segv.out-blank > div, .segv.out-blank::after { visibility: hidden; }
   .segv::after { content: ""; display: block; width: .6em; height: 1.2em; margin-top: .15em; background: #ccc; animation: caret 1s steps(1) infinite; }
 
   #w[data-fx="redacted"]::after {
@@ -636,11 +660,62 @@
         const b = lag > 45 ? BURSTS[3] : lag < -35 ? BURSTS[Math.random() < .5 ? 0 : 1] : burst();
         const n = f >= 1 ? lines.length : b.lines();
         if (n) say(term, ...lines.slice(shown, shown = Math.min(shown + n, lines.length)));
-        if (shown >= lines.length) return setTimeout(finish, 120);
+        if (shown >= lines.length) return setTimeout(finish, 1000);
         setTimeout(tick, b.wait());
       };
       tick();
     };
+
+    // ways for the console to leave once the page is back underneath it; each calls end() when gone
+    const EXITS = {
+      tear: (term, end) => { term.classList.add("out-tear"); setTimeout(end, 500); },
+      // on-screen lines garble, slip sideways and drop out, more of them each frame
+      decay: (term, end) => {
+        term.classList.add("out-decay");
+        const rows = [...term.children].filter(r => { const b = r.getBoundingClientRect(); return b.bottom > 0 && b.top < innerHeight; });
+        const junk = "█▓▒░_/|#=¿�";
+        let f = 0;
+        const step = () => {
+          rows.forEach(r => {
+            if (r.style.visibility) return;
+            const roll = Math.random();
+            if (roll < .12 + f * .03) r.style.visibility = "hidden";
+            else if (roll < .55) {
+              r.dataset.t ??= r.textContent;
+              r.textContent = [...r.dataset.t].map(c => c !== " " && Math.random() < .3 ? junk[rand(junk.length)] : c).join("");
+              r.style.translate = `${rand(40) - 20}px 0`;
+              r.style.filter = Math.random() < .1 ? "invert(1)" : "";
+            } else r.style.translate = "";
+          });
+          if (++f < 15) setTimeout(step, 30 + rand(30)); else end();
+        };
+        step();
+      },
+      // the desktop repaints top-down in uneven bands, a few of them lagging behind like a slow redraw
+      repaint: (term, end) => {
+        const h = term.clientHeight, band = Math.ceil(h / 16), start = performance.now();
+        let bands = Array.from({ length: Math.ceil(h / band) }, (_, i) => ({ y: i * band, at: i / (h / band) * 320 + (Math.random() < .2 ? 120 + rand(220) : rand(50)) }));
+        const step = () => {
+          const t = performance.now() - start;
+          bands = bands.filter(b => b.at > t);
+          if (!bands.length) return end();
+          term.style.clipPath = `path("${bands.map(b => `M0 ${b.y}h${term.clientWidth}v${band}h-${term.clientWidth}z`).join("")}")`;
+          setTimeout(step, 16 + rand(30));
+        };
+        step();
+      },
+      // the text cuts out, the screen sits black, flickers to the page once, black again, then the page is back
+      resync: (term, end) => {
+        term.classList.add("out-blank");
+        const flips = [260 + rand(120), 50 + rand(40), 90 + rand(80)];
+        const flip = () => {
+          if (!flips.length) return end();
+          setTimeout(() => { term.style.visibility = term.style.visibility ? "" : "hidden"; flip(); }, flips.shift());
+        };
+        flip();
+      },
+    };
+    const exitParam = new URLSearchParams(location.search).get("out");
 
     const crash = (corrupt, done) => {
       const lead = document.querySelector("h1 .lead"), em = document.querySelector("h1 em");
@@ -672,12 +747,13 @@
             const term = overlay("segv");
             say(term, "Segmentation fault (core dumped)");
             setTimeout(() => boot(term, () => {
-              term.remove();
+              // the page comes back underneath and the next word glitches in while the console tears away on top
               layer.remove();
               conceal(live, false);
               restore();
-              busy = false;
+              term.classList.add("out");
               done();
+              EXITS[EXITS[exitParam] ? exitParam : pick(Object.keys(EXITS))](term, () => { term.remove(); busy = false; });
             }), 900);
           }, 250);
         };
