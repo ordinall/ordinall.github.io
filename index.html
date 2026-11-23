@@ -276,6 +276,8 @@
     position: fixed; inset: 0; z-index: 4; pointer-events: none; background: #000; color: #ccc; padding: 16px 18px;
     font: 15px/1.5 ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace; white-space: pre;
   }
+  .segv { overflow: hidden; }
+  .segv .ok { color: #5fd35f; }
   .segv::after { content: ""; display: block; width: .6em; height: 1.2em; margin-top: .15em; background: #ccc; animation: caret 1s steps(1) infinite; }
 
   #w[data-fx="redacted"]::after {
@@ -547,6 +549,95 @@
     const MOJI = ["Ã¶", "Ã©", "â€", "â€™", "ï¿½", "�", "Â", "Ã", "¤", "Ø", "ÿ", "¿"];
     const garble = s => [...s].map(c => Math.random() < .55 ? MOJI[rand(MOJI.length)] : c).join("");
 
+    // after the segfault: a linux boot log floods past in bursts for ~1.5s
+    const BOOT_MS = 1500;
+    const pick = a => a[rand(a.length)];
+    const hx = n => Array.from({ length: n }, () => "0123456789abcdef"[rand(16)]).join("");
+    const bootLog = () => {
+      let t = 0;
+      const stamp = () => `[${(t += Math.random() < .08 ? Math.random() * .3 : Math.random() * .012).toFixed(6).padStart(12)}] `;
+      const bus = () => `0000:${hx(2)}:${hx(2)}.${rand(8)}`;
+      const KERNEL = [
+        () => `pci ${bus()}: [${hx(4)}:${hx(4)}] type 00 class 0x${hx(6)}`,
+        () => `pci ${bus()}: reg 0x${(16 + 4 * rand(6)).toString(16)}: [mem 0x${hx(8)}-0x${hx(8)} 64bit pref]`,
+        () => `ACPI: ${pick(["SSDT", "DSDT", "FACP", "APIC", "HPET", "MCFG", "FPDT"])} 0x00000000${hx(8).toUpperCase()} 00${hx(4).toUpperCase()} (v02 ORDNLL ${hx(8).toUpperCase()})`,
+        () => `usb ${1 + rand(4)}-${1 + rand(9)}: new high-speed USB device number ${2 + rand(14)} using xhci_hcd`,
+        () => `usb ${1 + rand(4)}-${1 + rand(9)}: New USB device found, idVendor=${hx(4)}, idProduct=${hx(4)}, bcdDevice=${rand(9)}.${hx(2)}`,
+        () => `input: ${pick(["AT Translated Set 2 keyboard", "Power Button", "Video Bus", "PC Speaker", "HDA Intel PCH Mic", "Logitech USB Receiver"])} as /devices/pci0000:00/0000:00:${hx(2)}.0/input/input${rand(30)}`,
+        () => `ata${1 + rand(6)}: SATA link down (SStatus 0 SControl 300)`,
+        () => `audit: type=1400 audit(1763${rand(1e6)}.${rand(999)}:${rand(99)}): apparmor="STATUS" operation="profile_load" name="${pick(["/usr/bin/man", "/usr/lib/snapd/snap-confine", "nvidia_modprobe", "lsb_release", "/usr/sbin/cupsd"])}" pid=${300 + rand(900)}`,
+        () => `NET: Registered PF_${pick(["INET6", "PACKET", "NETLINK", "UNIX", "XDP"])} protocol family`,
+        () => `clocksource: ${pick(["tsc", "hpet", "acpi_pm"])}: mask: 0xffffffffffffffff max_cycles: 0x${hx(10)}, max_idle_ns: ${rand(1e9)} ns`,
+        () => `smpboot: CPU ${rand(16)} is up`,
+        () => `PM: hibernation: Registered nosave memory: [mem 0x${hx(8)}-0x${hx(8)}]`,
+        () => `iwlwifi 0000:${hx(2)}:00.0: loaded firmware version ${70 + rand(20)}.${hx(8)}.0 op_mode iwlmvm`,
+        () => `snd_hda_intel 0000:00:1f.3: enabling device (0000 -> 0002)`,
+        () => `nvme nvme0: ${rand(16)}/0/0 default/read/poll queues`,
+        () => `EXT4-fs (nvme0n1p${1 + rand(3)}): mounted filesystem ${hx(8)}-${hx(4)}-${hx(4)}-${hx(4)}-${hx(12)} r/w with ordered data mode`,
+        () => `Freeing unused kernel image (${pick(["initmem", "text/rodata gap", "rodata/data gap"])}) memory: ${rand(4096)}K`,
+        () => `zswap: loaded using pool ${pick(["lzo", "zstd", "lz4"])}/zbud`,
+        () => `i915 0000:00:02.0: [drm] GT${rand(2)}: GuC firmware i915/adlp_guc_70.bin version 70.${rand(40)}.${rand(9)}`,
+      ];
+      const UNITS = ["Journal Service", "Load Kernel Modules", "Apply Kernel Variables", "Create Static Device Nodes in /dev",
+        "Rule-based Manager for Device Events and Files", "Network Manager", "WPA supplicant", "Avahi mDNS/DNS-SD Stack",
+        "Login Service", "D-Bus System Message Bus", "Disk Manager", "Modem Manager", "CUPS Scheduler", "Bluetooth service",
+        "Accounts Service", "Authorization Manager", "Power Profiles daemon", "Thermal Daemon Service", "Snap Daemon",
+        "Hold until boot process finishes up", "GNOME Display Manager", "Daily apt download activities", "Permit User Sessions"];
+      const lines = [
+        stamp() + "Linux version 6.8.0-ordinall (buildd@ordinall) (gcc 13.2.0, GNU ld 2.42) #1 SMP PREEMPT_DYNAMIC",
+        stamp() + "Command line: BOOT_IMAGE=/vmlinuz-6.8.0-ordinall root=UUID=" + hx(8) + "-" + hx(4) + " ro quiet splash",
+        ...Array.from({ length: 170 }, () => stamp() + pick(KERNEL)()),
+        stamp() + "systemd[1]: systemd 255 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +SECCOMP)",
+        stamp() + "systemd[1]: Hostname set to <ordinall>.",
+      ];
+      UNITS.forEach(u => {
+        if (Math.random() < .5) lines.push(`         Starting ${u.toLowerCase().replace(/ /g, "-")}.service - ${u}...`);
+        lines.push(["OK", `${pick(["Started", "Started", "Finished", "Reached target", "Listening on", "Mounted"])} ${u}.`]);
+      });
+      lines.splice(lines.length - 3, 0, ["OK", "Started make.service - I make things."]);
+      lines.push(["OK", "Reached target Graphical Interface."]);
+      return lines;
+    };
+    const say = (term, ...lines) => {
+      lines.forEach(line => {
+        const d = document.createElement("div");
+        if (Array.isArray(line)) {
+          const ok = document.createElement("span");
+          ok.className = "ok";
+          ok.textContent = "  OK  ";
+          d.append("[", ok, "] " + line[1]);
+        } else d.textContent = line;
+        term.appendChild(d);
+      });
+      term.scrollTop = term.scrollHeight;
+    };
+    // dumps lines in wildly uneven bursts (stalls, trickles, floods), loosely pacing itself to end at BOOT_MS
+    const BURSTS = [
+      { odds: .15, lines: () => 0,             wait: () => 140 + rand(200) }, // stall
+      { odds: .25, lines: () => 1 + rand(2),   wait: () => 12 + rand(30) },   // trickle
+      { odds: .35, lines: () => 3 + rand(10),  wait: () => 10 + rand(45) },   // stream
+      { odds: .25, lines: () => 25 + rand(50), wait: () => 30 + rand(70) },   // flood
+    ];
+    const burst = () => {
+      let roll = Math.random();
+      return BURSTS.find(b => (roll -= b.odds) < 0) || BURSTS[BURSTS.length - 1];
+    };
+    const boot = (term, finish) => {
+      const lines = bootLog(), start = performance.now();
+      let shown = 0;
+      say(term, "");
+      const tick = () => {
+        const f = (performance.now() - start) / BOOT_MS, lag = lines.length * Math.min(1, f) - shown;
+        // way behind: flood; way ahead: stall; otherwise whatever the dice say
+        const b = lag > 45 ? BURSTS[3] : lag < -35 ? BURSTS[Math.random() < .5 ? 0 : 1] : burst();
+        const n = f >= 1 ? lines.length : b.lines();
+        if (n) say(term, ...lines.slice(shown, shown = Math.min(shown + n, lines.length)));
+        if (shown >= lines.length) return setTimeout(finish, 120);
+        setTimeout(tick, b.wait());
+      };
+      tick();
+    };
+
     const crash = (corrupt, done) => {
       const lead = document.querySelector("h1 .lead"), em = document.querySelector("h1 em");
       const restore = () => { lead.textContent = "I make"; em.textContent = "things."; };
@@ -575,15 +666,15 @@
           if (++t < steps) return setTimeout(drag, 20 + rand(45) + (Math.random() < .1 ? 150 : 0));
           setTimeout(() => {
             const term = overlay("segv");
-            term.textContent = "Segmentation fault (core dumped)";
-            setTimeout(() => {
+            say(term, "Segmentation fault (core dumped)");
+            setTimeout(() => boot(term, () => {
               term.remove();
               layer.remove();
               conceal(live, false);
               restore();
               busy = false;
               done();
-            }, 1100);
+            }), 900);
           }, 250);
         };
         drag();
